@@ -1,0 +1,13 @@
+line_width: 120
+tab_size: 4
+use_tabchars: True
+
+fractional_tab_policy: 'use-space'
+
+dangle_parens: True
+
+max_pargs_hwrap: 3
+separate_ctrl_name_with_space: false
+separate_fn_name_with_space: false
+enum_char: .
+line_ending: unix
