@@ -1,4 +1,5 @@
 #include <span>
+#include <random>
 #include <cstdint>
 #include <eigen3/Eigen/Eigen>
 
@@ -47,73 +48,75 @@ public:
 	}
 };
 
-auto nudge_neural_network_values(network& neural_net) -> void {
+inline auto nudge_neural_network_values(network& neural_net, std::mt19937& rand_gen) -> void {
+	std::uniform_real_distribution rand_multiplier { 0.9, 1.1 };
+	std::bernoulli_distribution rand_bool {};
+
 	auto span = [](auto& matrix) {
 		return std::span(matrix.data(), matrix.size());
 	};
 
 	for (auto& w : span(neural_net.layer_2_weights)) {
-		if (rand() % 2 == 0) {
-			w *= static_cast<double>(rand()) / RAND_MAX / 5.0 + 0.9;
+		if (rand_bool(rand_gen)) {
+			w *= rand_multiplier(rand_gen);
 		}
 	}
 
 	for (auto& w : span(neural_net.layer_3_weights)) {
-		if (rand() % 2 == 0) {
-			w *= static_cast<double>(rand()) / RAND_MAX / 5.0 + 0.9;
+		if (rand_bool(rand_gen)) {
+			w *= rand_multiplier(rand_gen);
 		}
 	}
 
 	for (auto& w : span(neural_net.layer_4_weights)) {
-		if (rand() % 2 == 0) {
-			w *= static_cast<double>(rand()) / RAND_MAX / 5.0 + 0.9;
+		if (rand_bool(rand_gen)) {
+			w *= rand_multiplier(rand_gen);
 		}
 	}
 
 	for (auto& b : span(neural_net.layer_2_bias)) {
-		if (rand() % 2 == 0) {
-			b *= static_cast<double>(rand()) / RAND_MAX / 5.0 + 0.9;
-			/* b = 2.0 * static_cast<double>(rand()) / RAND_MAX - 1.0; */
+		if (rand_bool(rand_gen)) {
+			b *= rand_multiplier(rand_gen);
 		}
 	}
 
 	for (auto& b : span(neural_net.layer_3_bias)) {
-		if (rand() % 2 == 0) {
-			b *= static_cast<double>(rand()) / RAND_MAX / 5.0 + 0.9;
-			/* b = 2.0 * static_cast<double>(rand()) / RAND_MAX - 1.0; */
+		if (rand_bool(rand_gen)) {
+			b *= rand_multiplier(rand_gen);
 		}
 	}
 
 	for (auto& b : span(neural_net.layer_4_bias)) {
-		if (rand() % 2 == 0) {
-			b *= static_cast<double>(rand()) / RAND_MAX / 5.0 + 0.9;
-			/* b = 2.0 * static_cast<double>(rand()) / RAND_MAX - 1.0; */
+		if (rand_bool(rand_gen)) {
+			b *= rand_multiplier(rand_gen);
 		}
 	}
 }
 
-auto randomize_neural_network_value(network& neural_net) -> void {
+inline auto randomize_neural_network_value(network& neural_net, std::mt19937& rand_gen) -> void {
+	std::uniform_real_distribution rand_normal { -1.0, 1.0 };
+
 	for (auto& w : std::span(neural_net.layer_2_weights.data(), neural_net.layer_2_weights.size())) {
-		w = 2.0 * static_cast<double>(rand()) / RAND_MAX - 1.0;
+		w = rand_normal(rand_gen);
 	}
 
 	for (auto& w : std::span(neural_net.layer_3_weights.data(), neural_net.layer_3_weights.size())) {
-		w = 2.0 * static_cast<double>(rand()) / RAND_MAX - 1.0;
+		w = rand_normal(rand_gen);
 	}
 
 	for (auto& w : std::span(neural_net.layer_4_weights.data(), neural_net.layer_4_weights.size())) {
-		w = 2.0 * static_cast<double>(rand()) / RAND_MAX - 1.0;
+		w = rand_normal(rand_gen);
 	}
 
 	for (auto& b : std::span(neural_net.layer_2_bias.data(), neural_net.layer_2_bias.size())) {
-		b = 2.0 * static_cast<double>(rand()) / RAND_MAX - 1.0;
+		b = rand_normal(rand_gen);
 	}
 
 	for (auto& b : std::span(neural_net.layer_3_bias.data(), neural_net.layer_3_bias.size())) {
-		b = 2.0 * static_cast<double>(rand()) / RAND_MAX - 1.0;
+		b = rand_normal(rand_gen);
 	}
 
 	for (auto& b : std::span(neural_net.layer_4_bias.data(), neural_net.layer_4_bias.size())) {
-		b = 2.0 * static_cast<double>(rand()) / RAND_MAX - 1.0;
+		b = rand_normal(rand_gen);
 	}
 }

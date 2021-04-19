@@ -18,6 +18,7 @@
 using u8 = std::uint8_t;
 using u32 = std::uint32_t;
 using i32 = std::int32_t;
+using u64 = std::uint64_t;
 
 template<typename T>
 auto betoh(T value) -> T {
@@ -57,7 +58,7 @@ auto digits_from_path(std::string images_path, std::string labels_path, size_t d
 auto average_cost_of_neural_net(const network& neural_net, const std::vector<digit>& digits, size_t train_count = 0)
     -> double;
 
-auto train_neural_net(network&& in, std::vector<digit> training_digits, network& output) -> void {
+auto train_neural_net(network&& in, std::vector<digit> training_digits, network& output, std::mt19937& rand_gen) -> void {
 	network best_neural_net { in };
 	double best_average_cost = average_cost_of_neural_net(in, training_digits);
 
@@ -65,7 +66,7 @@ auto train_neural_net(network&& in, std::vector<digit> training_digits, network&
 
 	u32 iter_size = 1'000;
 	for (u32 i = 0; i < iter_size; ++i) {
-		nudge_neural_network_values(neural_net);
+		nudge_neural_network_values(neural_net, rand_gen);
 
 		auto average_cost = average_cost_of_neural_net(neural_net, training_digits);
 		if (average_cost < best_average_cost) {
@@ -81,7 +82,10 @@ auto train_neural_net(network&& in, std::vector<digit> training_digits, network&
 
 
 int main() {
-	std::srand(std::time(nullptr));
+	u64 initial_seed { static_cast<u64>(std::time(nullptr)) };
+	fmt::print("Using seed: {}\n", initial_seed);
+
+	std::mt19937 rand_gen { initial_seed };
 
 	std::pair<u32, u32> scale_factor { 30, 30 };
 	sf::RenderWindow window {
@@ -96,7 +100,7 @@ int main() {
 	auto digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels");
 
 	network best_neural_net {};
-	randomize_neural_network_value(best_neural_net);
+	randomize_neural_network_value(best_neural_net, rand_gen);
 	double best_average_cost { average_cost_of_neural_net(best_neural_net, digits) };
 
 	auto start_time = std::chrono::steady_clock::now();
@@ -107,14 +111,15 @@ int main() {
 		threads.reserve(networks.size());
 
 		for (auto& nn : networks) {
-			if (rand() % 10 == 0) {
-				randomize_neural_network_value(nn);
-			} else {
-				nn = best_neural_net;
-			}
+			nn = best_neural_net;
 
 			/* nudge_neural_network_values(neural_net); */
-			threads.emplace_back([&] { train_neural_net(std::move(nn), digits, nn); });
+			threads.emplace_back([&] {
+				std::uniform_int_distribution<u64> random_int {};
+
+				std::mt19937 thread_rand_gen { random_int(rand_gen) };
+				train_neural_net(std::move(nn), digits, nn, thread_rand_gen); 
+			});
 		}
 
 		for (auto& th : threads) {
