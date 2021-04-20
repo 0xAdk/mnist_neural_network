@@ -177,104 +177,50 @@ auto load_network_from_file(network& neural_net, const std::string filepath) -> 
 
 
 int main() {
-	auto training_digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels");
-
-	u64 initial_seed { static_cast<u64>(std::time(nullptr)) };
-	fmt::print("Using seed: {}\n", initial_seed);
-
-	std::mt19937 rand_gen { initial_seed };
-
 	network best_neural_net {};
-	double best_average_cost {};
 
 	std::string network_filepath { "data/saved_network.nn" };
-	if (std::filesystem::exists(network_filepath)) {
-		load_network_from_file(best_neural_net, network_filepath);
+	load_network_from_file(best_neural_net, network_filepath);
 
-		fmt::print("loaded network from filepath \"{}\"\n", network_filepath);
-		fmt::print("network cost: {}\n", average_cost_of_neural_net(best_neural_net, training_digits));
-	} else {
-		randomize_neural_network_value(best_neural_net, rand_gen);
+	fmt::print("Starting network test\n");
+	{
+		auto training_digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels");
+
+		u32 total_correct_training { 0 };
+		for (const auto& digit : training_digits) {
+			auto prediction = best_neural_net.get_prediction(digit.pixels);
+
+			size_t predicted_digit = std::distance(
+			    prediction.data(), std::max_element(prediction.data(), prediction.data() + prediction.size()));
+
+			if (predicted_digit == digit.label) {
+				total_correct_training += 1;
+			}
+		}
+
+		fmt::print("Training: {:6d} / {:6d} correct | {:.2f}%\n", total_correct_training, training_digits.size(),
+		           static_cast<double>(total_correct_training) / training_digits.size() * 100.0);
 	}
 
-	best_average_cost = average_cost_of_neural_net(best_neural_net, training_digits);
 
-	auto start_time = std::chrono::steady_clock::now();
+	{
+		auto testing_digits = digits_from_path("data/mnist_testing_images", "data/mnist_testing_labels");
 
-	bool stop_signal_recieved = false;
+		u32 total_correct_testing { 0 };
+		for (const auto& digit : testing_digits) {
+			auto prediction = best_neural_net.get_prediction(digit.pixels);
 
-	// Thread waits for 's' to be input in terminal, after it gets that it
-	// sets a flat to stop the train loop
-	std::thread stop_thread { [&stop_signal_recieved]() {
-		// Get terminal state to revert to after we are done
-		termios old_term {};
-		tcgetattr(STDIN_FILENO, &old_term);
+			size_t predicted_digit = std::distance(
+			    prediction.data(), std::max_element(prediction.data(), prediction.data() + prediction.size()));
 
-		// Set the terminal to not buffer when characters are enterd
-		termios new_term = old_term;
-		new_term.c_lflag &= ~(ICANON | ECHO);
-		tcsetattr(STDIN_FILENO, TCSANOW, &new_term);
-
-		// FIXME: fmt::print isn't thread safe
-		char c;
-		do {
-			fmt::print("Press 's' in terminal to stop\n");
-			c = getchar();
-		} while (c != EOF && c != 's');
-
-		fmt::print("Exiting training loop as soon as possible\n");
-		stop_signal_recieved = true;
-
-		// Revert terminal state
-		tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
-	} };
-
-	while (!stop_signal_recieved) {
-		std::array<network, 8> networks {};
-
-		std::vector<std::thread> threads {};
-		threads.reserve(networks.size());
-
-		for (auto& nn : networks) {
-			nn = best_neural_net;
-
-			/* nudge_neural_network_values(neural_net); */
-			threads.emplace_back([&] {
-				std::uniform_int_distribution<u64> random_int {};
-
-				std::mt19937 thread_rand_gen { random_int(rand_gen) };
-				train_neural_net(std::move(nn), training_digits, nn, thread_rand_gen);
-			});
+			if (predicted_digit == digit.label) {
+				total_correct_testing += 1;
+			}
 		}
 
-		for (auto& th : threads) {
-			th.join();
-		}
-
-		std::array<double, networks.size()> network_costs {};
-		for (size_t i = 0; i < networks.size(); ++i) {
-			network_costs[i] = average_cost_of_neural_net(networks[i], training_digits);
-		}
-
-		size_t best_network_index =
-		    std::distance(network_costs.begin(), std::min_element(network_costs.begin(), network_costs.end()));
-
-		auto& neural_net = networks[best_network_index];
-		if (auto average_cost = average_cost_of_neural_net(neural_net, training_digits);
-		    average_cost < best_average_cost) {
-			best_average_cost = average_cost;
-			best_neural_net = std::move(neural_net);
-
-			auto current_time = std::chrono::steady_clock::now();
-			auto diff = current_time - start_time;
-			fmt::print("[{:%H:%M:%S}] Best cost: {}\n", diff, best_average_cost);
-		}
+		fmt::print("Testing:  {:6d} / {:6d} correct | {:.2f}%\n", total_correct_testing, testing_digits.size(),
+		           static_cast<double>(total_correct_testing) / testing_digits.size() * 100.0);
 	}
-
-	stop_thread.join();
-
-	save_network_to_file(best_neural_net, network_filepath);
-	fmt::print("Saved neural network to {}\n", network_filepath);
 }
 
 auto digits_from_path(std::string images_path, std::string labels_path, size_t digit_count) -> std::vector<digit> {

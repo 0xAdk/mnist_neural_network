@@ -177,104 +177,65 @@ auto load_network_from_file(network& neural_net, const std::string filepath) -> 
 
 
 int main() {
-	auto training_digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels");
-
-	u64 initial_seed { static_cast<u64>(std::time(nullptr)) };
-	fmt::print("Using seed: {}\n", initial_seed);
-
-	std::mt19937 rand_gen { initial_seed };
-
 	network best_neural_net {};
-	double best_average_cost {};
 
 	std::string network_filepath { "data/saved_network.nn" };
-	if (std::filesystem::exists(network_filepath)) {
-		load_network_from_file(best_neural_net, network_filepath);
+	load_network_from_file(best_neural_net, network_filepath);
 
-		fmt::print("loaded network from filepath \"{}\"\n", network_filepath);
-		fmt::print("network cost: {}\n", average_cost_of_neural_net(best_neural_net, training_digits));
-	} else {
-		randomize_neural_network_value(best_neural_net, rand_gen);
+	fmt::print("Opening digit viewer. Press 'q' in window to quit\n");
+	auto digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels", 1000);
+
+	std::pair<u32, u32> scale_factor { 30, 30 };
+	sf::RenderWindow window {
+		{ 28 * scale_factor.first, 28 * scale_factor.second },
+		"window title",
+		sf::Style::None,
+	};
+
+	window.setFramerateLimit(60);
+
+	constrained_integral<size_t> current_digit_index { 0, { 0, digits.size() - 1 } };
+	while (window.isOpen()) {
+		for (sf::Event event; window.pollEvent(event);) {
+			if (event.type == sf::Event::Closed) {
+				window.close();
+			}
+
+			if (event.type == sf::Event::KeyPressed) {
+				if (event.key.code == sf::Keyboard::Key::Q) {
+					window.close();
+					continue;
+				}
+
+				if (event.key.code == sf::Keyboard::Key::Right) {
+					current_digit_index += 1;
+				}
+
+				if (event.key.code == sf::Keyboard::Key::Left) {
+					current_digit_index -= 1;
+				}
+
+				auto prediction = best_neural_net.get_prediction(digits[current_digit_index].pixels);
+				size_t predicted_digit = std::distance(
+				    prediction.data(), std::max_element(prediction.data(), prediction.data() + prediction.size()));
+
+				fmt::print(" {} | {}\r", predicted_digit, digits[current_digit_index].label);
+				fflush(stdout);
+			}
+		}
+
+		sf::Image image { image_from_digit(digits[current_digit_index]) };
+
+		sf::Texture texture {};
+		texture.loadFromImage(image);
+
+		sf::Sprite sprite {};
+		sprite.setTexture(texture);
+		sprite.setScale(scale_factor.first, scale_factor.second);
+
+		window.draw(sprite);
+		window.display();
 	}
-
-	best_average_cost = average_cost_of_neural_net(best_neural_net, training_digits);
-
-	auto start_time = std::chrono::steady_clock::now();
-
-	bool stop_signal_recieved = false;
-
-	// Thread waits for 's' to be input in terminal, after it gets that it
-	// sets a flat to stop the train loop
-	std::thread stop_thread { [&stop_signal_recieved]() {
-		// Get terminal state to revert to after we are done
-		termios old_term {};
-		tcgetattr(STDIN_FILENO, &old_term);
-
-		// Set the terminal to not buffer when characters are enterd
-		termios new_term = old_term;
-		new_term.c_lflag &= ~(ICANON | ECHO);
-		tcsetattr(STDIN_FILENO, TCSANOW, &new_term);
-
-		// FIXME: fmt::print isn't thread safe
-		char c;
-		do {
-			fmt::print("Press 's' in terminal to stop\n");
-			c = getchar();
-		} while (c != EOF && c != 's');
-
-		fmt::print("Exiting training loop as soon as possible\n");
-		stop_signal_recieved = true;
-
-		// Revert terminal state
-		tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
-	} };
-
-	while (!stop_signal_recieved) {
-		std::array<network, 8> networks {};
-
-		std::vector<std::thread> threads {};
-		threads.reserve(networks.size());
-
-		for (auto& nn : networks) {
-			nn = best_neural_net;
-
-			/* nudge_neural_network_values(neural_net); */
-			threads.emplace_back([&] {
-				std::uniform_int_distribution<u64> random_int {};
-
-				std::mt19937 thread_rand_gen { random_int(rand_gen) };
-				train_neural_net(std::move(nn), training_digits, nn, thread_rand_gen);
-			});
-		}
-
-		for (auto& th : threads) {
-			th.join();
-		}
-
-		std::array<double, networks.size()> network_costs {};
-		for (size_t i = 0; i < networks.size(); ++i) {
-			network_costs[i] = average_cost_of_neural_net(networks[i], training_digits);
-		}
-
-		size_t best_network_index =
-		    std::distance(network_costs.begin(), std::min_element(network_costs.begin(), network_costs.end()));
-
-		auto& neural_net = networks[best_network_index];
-		if (auto average_cost = average_cost_of_neural_net(neural_net, training_digits);
-		    average_cost < best_average_cost) {
-			best_average_cost = average_cost;
-			best_neural_net = std::move(neural_net);
-
-			auto current_time = std::chrono::steady_clock::now();
-			auto diff = current_time - start_time;
-			fmt::print("[{:%H:%M:%S}] Best cost: {}\n", diff, best_average_cost);
-		}
-	}
-
-	stop_thread.join();
-
-	save_network_to_file(best_neural_net, network_filepath);
-	fmt::print("Saved neural network to {}\n", network_filepath);
 }
 
 auto digits_from_path(std::string images_path, std::string labels_path, size_t digit_count) -> std::vector<digit> {
