@@ -267,14 +267,13 @@ int main() {
 
 			auto current_time = std::chrono::steady_clock::now();
 			auto diff = current_time - start_time;
-			fmt::print("[{:%H:%M:%S}] Best cost: {}\n", diff, best_average_cost);
+			fmt::print("[{:%H:%M:%S}] new best cost network ({}) saved to \"{}\"\n", diff, best_average_cost, network_filepath);
+
+			save_network_to_file(best_neural_net, network_filepath);
 		}
 	}
 
 	stop_thread.join();
-
-	save_network_to_file(best_neural_net, network_filepath);
-	fmt::print("Saved neural network to {}\n", network_filepath);
 }
 
 auto digits_from_path(std::string images_path, std::string labels_path, size_t digit_count) -> std::vector<digit> {
