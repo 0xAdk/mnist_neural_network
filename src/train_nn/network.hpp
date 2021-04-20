@@ -7,11 +7,6 @@ using std::size_t;
 
 class network {
 private:
-	static constexpr size_t layer_1_size = 28 * 28;
-	static constexpr size_t layer_2_size = 16;
-	static constexpr size_t layer_3_size = 16;
-	static constexpr size_t layer_4_size = 10;
-
 	template<int Size>
 	auto sigmoid(Eigen::Matrix<double, Size, 1>&& values) const -> Eigen::Matrix<double, Size, 1> {
 		for (auto& value : std::span(values.data(), values.size())) {
@@ -23,6 +18,12 @@ private:
 	}
 
 public:
+	using u64 = std::uint64_t;
+	static constexpr u64 layer_1_size = 28 * 28;
+	static constexpr u64 layer_2_size = 16;
+	static constexpr u64 layer_3_size = 16;
+	static constexpr u64 layer_4_size = 10;
+
 	Eigen::Matrix<double, layer_2_size, 1> layer_2_bias {};
 	Eigen::Matrix<double, layer_2_size, layer_1_size> layer_2_weights {};
 

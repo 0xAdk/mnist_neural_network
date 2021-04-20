@@ -5,6 +5,7 @@
 #include <random>
 #include <chrono>
 #include <thread>
+#include <filesystem>
 
 #include <termios.h>
 #include <unistd.h>
@@ -82,9 +83,100 @@ auto train_neural_net(network&& in, std::vector<digit> training_digits, network&
 	output = std::move(best_neural_net);
 };
 
+auto save_network_to_file(const network& neural_net, const std::string filepath) -> void {
+	std::ofstream file { filepath, std::ios::binary };
+
+	if (!file.is_open()) {
+		fmt::print("Failed to open network file at {} while saving\n", filepath);
+
+		exit(1);
+	}
+
+	auto write_data = [&file]<typename T>(const T& data) {
+		file.write(reinterpret_cast<const char*>(&data), sizeof data);
+	};
+
+	u32 magic_number = 0x606;
+	
+	/* file.write(reinterpret_cast<char*>(&magic_number), sizeof magic_number); */
+	write_data(magic_number);
+	write_data(neural_net.layer_1_size);
+	write_data(neural_net.layer_2_size);
+	write_data(neural_net.layer_3_size);
+	write_data(neural_net.layer_4_size);
+
+	auto write_matrix = [&write_data](auto& matrix) {
+		auto span = [](auto& matrix) {
+			return std::span(matrix.data(), matrix.size());
+		};
+
+		for (const auto& value : span(matrix)) {
+			write_data(value);
+		}
+	};
+
+	write_matrix(neural_net.layer_2_bias);
+	write_matrix(neural_net.layer_2_weights);
+	write_matrix(neural_net.layer_3_bias);
+	write_matrix(neural_net.layer_3_weights);
+	write_matrix(neural_net.layer_4_bias);
+	write_matrix(neural_net.layer_4_weights);
+}
+
+auto load_network_from_file(network& neural_net, const std::string filepath) -> void {
+	std::ifstream file { filepath, std::ios::binary };
+
+	if (!file.is_open()) {
+		fmt::print("Failed to open network file at {} while loading\n", filepath);
+
+		exit(1);
+	}
+
+	auto read_data = [&file]<typename T>(T& output) {
+		std::array<char, sizeof output> buf {};
+
+		file.read(reinterpret_cast<char*>(buf.data()), buf.size());
+
+		output = *reinterpret_cast<T*>(buf.data());
+	};
+
+	u32 magic_number = 0x606;
+	u32 read_magic_number;
+	read_data(read_magic_number);
+	if (magic_number != read_magic_number) {
+		fmt::print(
+			"Error read in magic number is incorrect\n"
+			"Expected {}, got {}\n", magic_number, read_magic_number
+		);
+	}
+
+	u64 layer_size;
+	read_data(layer_size);
+	read_data(layer_size);
+	read_data(layer_size);
+	read_data(layer_size);
+
+	auto read_matrix = [&read_data](auto& matrix) {
+		auto span = [](auto& matrix) {
+			return std::span(matrix.data(), matrix.size());
+		};
+
+		for (auto& value : span(matrix)) {
+			read_data(value);
+		}
+	};
+
+	read_matrix(neural_net.layer_2_bias);
+	read_matrix(neural_net.layer_2_weights);
+	read_matrix(neural_net.layer_3_bias);
+	read_matrix(neural_net.layer_3_weights);
+	read_matrix(neural_net.layer_4_bias);
+	read_matrix(neural_net.layer_4_weights);
+}
+
 
 int main() {
-	network best_neural_net {};
+	std::string network_filepath { "data/saved_network.nn" };
 
 	// Train a network
 	{
@@ -95,8 +187,19 @@ int main() {
 
 		std::mt19937 rand_gen { initial_seed };
 
-		randomize_neural_network_value(best_neural_net, rand_gen);
-		double best_average_cost { average_cost_of_neural_net(best_neural_net, training_digits) };
+		network best_neural_net {};
+		double best_average_cost {};
+
+		if (std::filesystem::exists(network_filepath)) {
+			load_network_from_file(best_neural_net, network_filepath);
+
+			fmt::print("loaded network from filepath \"{}\"\n", network_filepath);
+			fmt::print("network cost: {}\n", average_cost_of_neural_net(best_neural_net, training_digits));
+		} else {
+			randomize_neural_network_value(best_neural_net, rand_gen);
+		}
+
+		best_average_cost = average_cost_of_neural_net(best_neural_net, training_digits);
 
 		auto start_time = std::chrono::steady_clock::now();
 
@@ -170,10 +273,16 @@ int main() {
 		}
 
 		stop_thread.join();
+
+		save_network_to_file(best_neural_net, network_filepath);
+		fmt::print("Saved neural network to {}\n", network_filepath);
 	}
 
 	// Draw digits and print out { network guess | correct answer } to terminal
 	{
+		network best_neural_net {};
+		load_network_from_file(best_neural_net, network_filepath);
+
 		fmt::print("Opening digit viewer. Press 'q' in window to quit\n");
 		auto digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels", 1000);
 
@@ -232,6 +341,9 @@ int main() {
 
 	// Test how many total digits the network is able to get correct in both the training set and the testing set
 	{
+		network best_neural_net {};
+		load_network_from_file(best_neural_net, network_filepath);
+
 		fmt::print("Starting network test\n");
 		{
 			auto training_digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels");
