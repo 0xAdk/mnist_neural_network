@@ -1,7 +1,11 @@
+#pragma once
+
 #include <span>
 #include <random>
 #include <cstdint>
 #include <eigen3/Eigen/Eigen>
+
+#include "short_types.hpp"
 
 using std::size_t;
 
@@ -18,7 +22,6 @@ private:
 	}
 
 public:
-	using u64 = std::uint64_t;
 	static constexpr u64 layer_1_size = 28 * 28;
 	static constexpr u64 layer_2_size = 16;
 	static constexpr u64 layer_3_size = 16;
@@ -33,7 +36,6 @@ public:
 	Eigen::Matrix<double, layer_4_size, 1> layer_4_bias {};
 	Eigen::Matrix<double, layer_4_size, layer_3_size> layer_4_weights {};
 
-	using u8 = std::uint8_t;
 	auto get_prediction(std::array<u8, layer_1_size> pixels) const -> Eigen::Matrix<double, layer_4_size, 1> {
 		Eigen::Matrix<double, layer_1_size, 1> layer_1 {};
 
