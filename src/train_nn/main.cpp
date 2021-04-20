@@ -6,6 +6,8 @@
 #include <chrono>
 #include <thread>
 
+#include <termios.h>
+#include <unistd.h>
 #include <endian.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -82,144 +84,200 @@ auto train_neural_net(network&& in, std::vector<digit> training_digits, network&
 
 
 int main() {
-	u64 initial_seed { static_cast<u64>(std::time(nullptr)) };
-	fmt::print("Using seed: {}\n", initial_seed);
-
-	std::mt19937 rand_gen { initial_seed };
-
-	std::pair<u32, u32> scale_factor { 30, 30 };
-	sf::RenderWindow window {
-		{ 28 * scale_factor.first, 28 * scale_factor.second },
-		"window title",
-		sf::Style::None,
-	};
-
-	window.setFramerateLimit(60);
-
-
-	auto digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels");
-
 	network best_neural_net {};
-	randomize_neural_network_value(best_neural_net, rand_gen);
-	double best_average_cost { average_cost_of_neural_net(best_neural_net, digits) };
 
-	auto start_time = std::chrono::steady_clock::now();
-	while (!(sf::Keyboard::isKeyPressed(sf::Keyboard::BackSpace) && window.hasFocus())) {
-		std::array<network, 8> networks {};
+	// Train a network
+	{
+		auto training_digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels");
 
-		std::vector<std::thread> threads {};
-		threads.reserve(networks.size());
+		u64 initial_seed { static_cast<u64>(std::time(nullptr)) };
+		fmt::print("Using seed: {}\n", initial_seed);
 
-		for (auto& nn : networks) {
-			nn = best_neural_net;
+		std::mt19937 rand_gen { initial_seed };
 
-			/* nudge_neural_network_values(neural_net); */
-			threads.emplace_back([&] {
-				std::uniform_int_distribution<u64> random_int {};
+		randomize_neural_network_value(best_neural_net, rand_gen);
+		double best_average_cost { average_cost_of_neural_net(best_neural_net, training_digits) };
 
-				std::mt19937 thread_rand_gen { random_int(rand_gen) };
-				train_neural_net(std::move(nn), digits, nn, thread_rand_gen); 
-			});
+		auto start_time = std::chrono::steady_clock::now();
+
+		bool stop_signal_recieved = false;
+
+		// Thread waits for 's' to be input in terminal, after it gets that it
+		// sets a flat to stop the train loop
+		std::thread stop_thread { [&stop_signal_recieved]() {
+			// Get terminal state to revert to after we are done
+			termios old_term {};
+			tcgetattr(STDIN_FILENO, &old_term);
+
+			// Set the terminal to not buffer when characters are enterd
+			termios new_term = old_term;
+			new_term.c_lflag &= ~(ICANON | ECHO);
+			tcsetattr(STDIN_FILENO, TCSANOW, &new_term);
+
+			// FIXME: fmt::print isn't thread safe
+			char c;
+			do {
+				fmt::print("Press 's' in terminal to stop\n");
+				c = getchar();
+			} while (c != EOF && c != 's');
+
+			fmt::print("Exiting training loop as soon as possible\n");
+			stop_signal_recieved = true;
+
+			// Revert terminal state
+			tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
+		} };
+
+		while (!stop_signal_recieved) {
+			std::array<network, 8> networks {};
+
+			std::vector<std::thread> threads {};
+			threads.reserve(networks.size());
+
+			for (auto& nn : networks) {
+				nn = best_neural_net;
+
+				/* nudge_neural_network_values(neural_net); */
+				threads.emplace_back([&] {
+					std::uniform_int_distribution<u64> random_int {};
+
+					std::mt19937 thread_rand_gen { random_int(rand_gen) };
+					train_neural_net(std::move(nn), training_digits, nn, thread_rand_gen); 
+				});
+			}
+
+			for (auto& th : threads) {
+				th.join();
+			}
+
+			std::array<double, networks.size()> network_costs {};
+			for (size_t i = 0; i < networks.size(); ++i) {
+				network_costs[i] = average_cost_of_neural_net(networks[i], training_digits);
+			}
+
+			size_t best_network_index =
+				std::distance(network_costs.begin(), std::min_element(network_costs.begin(), network_costs.end()));
+
+			auto& neural_net = networks[best_network_index];
+			if (auto average_cost = average_cost_of_neural_net(neural_net, training_digits); average_cost < best_average_cost) {
+				best_average_cost = average_cost;
+				best_neural_net = std::move(neural_net);
+
+				auto current_time = std::chrono::steady_clock::now();
+				auto diff = current_time - start_time;
+				fmt::print("[{:%H:%M:%S}] Best cost: {}\n", diff, best_average_cost);
+			}
 		}
 
-		for (auto& th : threads) {
-			th.join();
-		}
+		stop_thread.join();
+	}
 
-		std::array<double, networks.size()> network_costs {};
-		for (size_t i = 0; i < networks.size(); ++i) {
-			network_costs[i] = average_cost_of_neural_net(networks[i], digits);
-		}
+	// Draw digits and print out { network guess | correct answer } to terminal
+	{
+		fmt::print("Opening digit viewer. Press 'q' in window to quit\n");
+		auto digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels", 1000);
 
-		size_t best_network_index =
-		    std::distance(network_costs.begin(), std::min_element(network_costs.begin(), network_costs.end()));
+		std::pair<u32, u32> scale_factor { 30, 30 };
+		sf::RenderWindow window {
+			{ 28 * scale_factor.first, 28 * scale_factor.second },
+			"window title",
+			sf::Style::None,
+		};
 
-		auto& neural_net = networks[best_network_index];
-		if (auto average_cost = average_cost_of_neural_net(neural_net, digits); average_cost < best_average_cost) {
-			best_average_cost = average_cost;
-			best_neural_net = std::move(neural_net);
+		window.setFramerateLimit(60);
 
-			auto current_time = std::chrono::steady_clock::now();
-			auto diff = current_time - start_time;
-			fmt::print("[{:%H:%M:%S}] Best cost: {}\n", diff, best_average_cost);
+		constrained_integral<size_t> current_digit_index { 0, { 0, digits.size() - 1 } };
+		while (window.isOpen()) {
+			for (sf::Event event; window.pollEvent(event);) {
+				if (event.type == sf::Event::Closed) {
+					window.close();
+				}
+
+				if (event.type == sf::Event::KeyPressed) {
+					if (event.key.code == sf::Keyboard::Key::Q) {
+						window.close();
+						continue;
+					}
+
+					if (event.key.code == sf::Keyboard::Key::Right) {
+						current_digit_index += 1;
+					}
+
+					if (event.key.code == sf::Keyboard::Key::Left) {
+						current_digit_index -= 1;
+					}
+
+					auto prediction = best_neural_net.get_prediction(digits[current_digit_index].pixels);
+					size_t predicted_digit = std::distance(
+						prediction.data(), std::max_element(prediction.data(), prediction.data() + prediction.size()));
+
+					fmt::print(" {} | {}\r", predicted_digit, digits[current_digit_index].label);
+					fflush(stdout);
+				}
+			}
+
+			sf::Image image { image_from_digit(digits[current_digit_index]) };
+
+			sf::Texture texture {};
+			texture.loadFromImage(image);
+
+			sf::Sprite sprite {};
+			sprite.setTexture(texture);
+			sprite.setScale(scale_factor.first, scale_factor.second);
+
+			window.draw(sprite);
+			window.display();
 		}
 	}
 
-	constrained_integral<size_t> current_digit_index { 0, { 0, digits.size() - 1 } };
-	while (window.isOpen()) {
-		for (sf::Event event; window.pollEvent(event);) {
-			if (event.type == sf::Event::Closed) {
-				window.close();
-			}
+	// Test how many total digits the network is able to get correct in both the training set and the testing set
+	{
+		fmt::print("Starting network test\n");
+		{
+			auto training_digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels");
 
-			if (event.type == sf::Event::KeyPressed) {
-				if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) {
-					current_digit_index += 1;
-				}
+			u32 total_correct_training { 0 };
+			for (const auto& digit : training_digits) {
+				auto prediction = best_neural_net.get_prediction(digit.pixels);
 
-				if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
-					current_digit_index -= 1;
-				}
-
-				auto prediction = best_neural_net.get_prediction(digits[current_digit_index].pixels);
 				size_t predicted_digit = std::distance(
-				    prediction.data(), std::max_element(prediction.data(), prediction.data() + prediction.size()));
+					prediction.data(), std::max_element(prediction.data(), prediction.data() + prediction.size()));
 
-				fmt::print(" {} | {}\r", predicted_digit, digits[current_digit_index].label);
-				fflush(stdout);
+				if (predicted_digit == digit.label) {
+					total_correct_training += 1;
+				}
 			}
+
+			fmt::print(
+				"Training: {:6d} / {:6d} correct | {:.2f}%\n", 
+				total_correct_training, training_digits.size(),
+				static_cast<double>(total_correct_training) / training_digits.size() * 100.0
+			);
 		}
 
-		sf::Image image { image_from_digit(digits[current_digit_index]) };
 
-		sf::Texture texture {};
-		texture.loadFromImage(image);
+		{
+			auto testing_digits = digits_from_path("data/mnist_testing_images", "data/mnist_testing_labels");
 
-		sf::Sprite sprite {};
-		sprite.setTexture(texture);
-		sprite.setScale(scale_factor.first, scale_factor.second);
+			u32 total_correct_testing { 0 };
+			for (const auto& digit : testing_digits) {
+				auto prediction = best_neural_net.get_prediction(digit.pixels);
 
-		window.draw(sprite);
-		window.display();
-	}
+				size_t predicted_digit = std::distance(
+					prediction.data(), std::max_element(prediction.data(), prediction.data() + prediction.size()));
 
-	auto testing_digits = digits_from_path("data/mnist_testing_images", "data/mnist_testing_labels");
+				if (predicted_digit == digit.label) {
+					total_correct_testing += 1;
+				}
+			}
 
-	u32 total_correct_training { 0 };
-	for (const auto& digit : digits) {
-		auto prediction = best_neural_net.get_prediction(digit.pixels);
-
-		size_t predicted_digit = std::distance(
-		    prediction.data(), std::max_element(prediction.data(), prediction.data() + prediction.size()));
-
-		if (predicted_digit == digit.label) {
-			total_correct_training += 1;
+			fmt::print(
+				"Testing:  {:6d} / {:6d} correct | {:.2f}%\n", 
+				total_correct_testing, testing_digits.size(),
+				static_cast<double>(total_correct_testing) / testing_digits.size() * 100.0
+			);
 		}
 	}
-
-	u32 total_correct_testing { 0 };
-	for (const auto& digit : testing_digits) {
-		auto prediction = best_neural_net.get_prediction(digit.pixels);
-
-		size_t predicted_digit = std::distance(
-		    prediction.data(), std::max_element(prediction.data(), prediction.data() + prediction.size()));
-
-		if (predicted_digit == digit.label) {
-			total_correct_testing += 1;
-		}
-	}
-
-	fmt::print(
-		"Training: {} / {} correct | {}%\n", 
-		total_correct_training, digits.size(),
-		static_cast<double>(total_correct_training) / digits.size() * 100.0
-	);
-
-	fmt::print(
-		"Testing:  {} / {} correct | {}%\n", 
-		total_correct_testing, testing_digits.size(),
-		static_cast<double>(total_correct_testing) / testing_digits.size() * 100.0
-	);
 }
 
 auto digits_from_path(std::string images_path, std::string labels_path, size_t digit_count) -> std::vector<digit> {
