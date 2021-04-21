@@ -5,3 +5,7 @@ Debug/
 Release/
 RelWithDebInfo/
 MinSizeRel/
+
+^data/saved_network.nn
+data/*.nn
+data/*.nn.*
