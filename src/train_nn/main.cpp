@@ -130,7 +130,7 @@ int main(int argc, char* argv[]) {
 			network neural_net { best_neural_net };
 
 			while (!stop_signal_recieved) {
-				nudge_neural_network_values(neural_net, rand_gen);
+				nudge_neural_network_values(neural_net, thread_rand_gen);
 
 				auto average_cost = average_cost_of_neural_net(neural_net, training_digits);
 
@@ -149,7 +149,7 @@ int main(int argc, char* argv[]) {
 					std::bernoulli_distribution rand_bool {};
 
 					// Give a chance that the network survives even if it's worse
-					if (rand_bool(rand_gen)) {
+					if (rand_bool(thread_rand_gen)) {
 						neural_net = best_neural_net;
 					}
 				}
