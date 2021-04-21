@@ -5,11 +5,13 @@
 #include <thread>
 #include <vector>
 #include <mutex>
+#include <string>
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <termios.h>
 #include <unistd.h>
+#include <cxxopts.hpp>
 
 #include "average_cost_of_neural_net.hpp"
 #include "digit.hpp"
@@ -19,18 +21,58 @@
 #include "network_to_file.hpp"
 #include "short_types.hpp"
 
-int main() {
-	auto training_digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels");
+int main(int argc, char* argv[]) {
+	cxxopts::Options opts { "NN Trainer", "Trains neural networks" };
+	opts.add_options()
+		("t,threads", "Number of threads to use", cxxopts::value<u64>()->default_value("0"))
+		("data-dir", "Directory that contains the mnist database", cxxopts::value<std::string>()->default_value("data"))
+		("n,network-path", "Network binary to train", cxxopts::value<std::string>()->default_value("neural_network.nn"));
+
+	opts.parse_positional("network-path");
+
+	// FIXME: catch exceptions thrown by cxxopts::Options::parse on errors
+	auto results = opts.parse(argc, argv);
+
+	u64 thread_count { results["threads"].as<u64>() };
+	{
+		if (thread_count == 0) {
+			thread_count = std::thread::hardware_concurrency();
+
+			if (thread_count == 0) {
+				thread_count = 1;
+			}
+		}
+
+		fmt::print("using {} thread{}\n", thread_count, thread_count > 1 ? "s" : "");
+	}
+
+	std::vector<digit> training_digits;
+	{
+		std::string data_dir { results["data-dir"].as<std::string>() };
+
+		if (!std::filesystem::is_directory(data_dir)) {
+			fmt::print("data-dir: \"{}\" isn't a directory\n", data_dir);
+			exit(1);
+		}
+
+		training_digits = digits_from_path(data_dir + "/mnist_training_images", data_dir + "/mnist_training_labels");
+	}
+
+	std::string network_filepath { results["network-path"].as<std::string>() };
+
+	if (results["network-path"].count() == 0) {
+		fmt::print("No network path given creating new network file \"{}\"\n", network_filepath);
+	}
+
 
 	u64 initial_seed { static_cast<u64>(std::time(nullptr)) };
-	fmt::print("Using seed: {}\n", initial_seed);
+	fmt::print("using seed: {}\n", initial_seed);
 
 	std::mt19937 rand_gen { initial_seed };
 
 	network best_neural_net {};
 	double best_average_cost {};
 
-	std::string network_filepath { "data/saved_network.nn" };
 	if (std::filesystem::exists(network_filepath)) {
 		load_network_from_file(best_neural_net, network_filepath);
 
@@ -74,7 +116,6 @@ int main() {
 
 	std::mutex best_nn_mutex {};
 
-	size_t thread_count = 8;
 	std::vector<std::thread> threads {};
 	threads.reserve(thread_count);
 
@@ -101,7 +142,8 @@ int main() {
 
 					auto current_time = std::chrono::steady_clock::now();
 					auto diff = current_time - start_time;
-					fmt::print("[{:9%H:%M:%S}] new best cost network ({:.6f} | -{:.6f}) saved to \"{}\"\n", diff, best_average_cost, cost_diff, network_filepath);
+					fmt::print("[{:9%H:%M:%S}] new best cost network ({:.6f} | -{:.6f}) saved to \"{}\"\n", diff,
+					           best_average_cost, cost_diff, network_filepath);
 					save_network_to_file(best_neural_net, network_filepath);
 				} else {
 					std::bernoulli_distribution rand_bool {};

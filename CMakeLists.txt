@@ -12,6 +12,7 @@ conan_cmake_run(
 	fmt/7.1.2
 	sfml/2.5.1@bincrafters/stable
 	eigen/3.3.9
+	cxxopts/2.2.1
 
 	BASIC_SETUP CMAKE_TARGETS
 	BUILD missing
@@ -22,7 +23,7 @@ find_package(Threads REQUIRED)
 
 add_executable(train_nn src/train_nn/main.cpp)
 target_include_directories(train_nn PRIVATE src/common)
-target_link_libraries(train_nn PRIVATE CONAN_PKG::fmt CONAN_PKG::eigen Threads::Threads)
+target_link_libraries(train_nn PRIVATE CONAN_PKG::fmt CONAN_PKG::eigen Threads::Threads CONAN_PKG::cxxopts)
 
 add_executable(check_nn src/check_nn/main.cpp)
 target_include_directories(check_nn PRIVATE src/common)
