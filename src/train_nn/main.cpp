@@ -26,7 +26,8 @@ int main(int argc, char* argv[]) {
 	opts.add_options()
 		("t,threads", "Number of threads to use", cxxopts::value<u64>()->default_value("0"))
 		("data-dir", "Directory that contains the mnist database", cxxopts::value<std::string>()->default_value("data"))
-		("n,network-path", "Network binary to train", cxxopts::value<std::string>()->default_value("neural_network.nn"));
+		("n,network-path", "Network binary to train", cxxopts::value<std::string>()->default_value("neural_network.nn"))
+		("s,seed", "Seed for random number generator", cxxopts::value<u64>());
 
 	opts.parse_positional("network-path");
 
@@ -34,17 +35,14 @@ int main(int argc, char* argv[]) {
 	auto results = opts.parse(argc, argv);
 
 	u64 thread_count { results["threads"].as<u64>() };
-	{
+	if (thread_count == 0) {
+		thread_count = std::thread::hardware_concurrency();
+
 		if (thread_count == 0) {
-			thread_count = std::thread::hardware_concurrency();
-
-			if (thread_count == 0) {
-				thread_count = 1;
-			}
+			thread_count = 1;
 		}
-
-		fmt::print("using {} thread{}\n", thread_count, thread_count > 1 ? "s" : "");
 	}
+	fmt::print("using {} thread{}\n", thread_count, thread_count > 1 ? "s" : "");
 
 	std::vector<digit> training_digits;
 	{
@@ -65,7 +63,12 @@ int main(int argc, char* argv[]) {
 	}
 
 
-	u64 initial_seed { static_cast<u64>(std::time(nullptr)) };
+	u64 initial_seed;
+	if (results.count("seed") != 0) {
+		initial_seed = results["seed"].as<u64>();
+	} else {
+		initial_seed = static_cast<u64>(std::time(nullptr));
+	}
 	fmt::print("using seed: {}\n", initial_seed);
 
 	std::mt19937 rand_gen { initial_seed };
@@ -123,9 +126,7 @@ int main(int argc, char* argv[]) {
 		threads.emplace_back([&best_neural_net, &best_average_cost, &start_time, &network_filepath, &rand_gen,
 		                      &training_digits, &best_nn_mutex, &stop_signal_recieved] {
 			std::uniform_int_distribution<u64> random_int {};
-
 			std::mt19937 thread_rand_gen { random_int(rand_gen) };
-			/* train_neural_net(std::move(nn), training_digits, nn, thread_rand_gen); */
 
 			network neural_net { best_neural_net };
 
