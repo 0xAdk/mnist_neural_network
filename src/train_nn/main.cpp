@@ -4,6 +4,7 @@
 #include <random>
 #include <thread>
 #include <vector>
+#include <mutex>
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
@@ -17,29 +18,6 @@
 #include "network_from_file.hpp"
 #include "network_to_file.hpp"
 #include "short_types.hpp"
-
-auto train_neural_net(network&& in, std::vector<digit> training_digits, network& output, std::mt19937& rand_gen)
-    -> void {
-	network best_neural_net { in };
-	double best_average_cost = average_cost_of_neural_net(in, training_digits);
-
-	network neural_net { best_neural_net };
-
-	u32 iter_size = 1'000;
-	for (u32 i = 0; i < iter_size; ++i) {
-		nudge_neural_network_values(neural_net, rand_gen);
-
-		auto average_cost = average_cost_of_neural_net(neural_net, training_digits);
-		if (average_cost < best_average_cost) {
-			best_average_cost = average_cost;
-			best_neural_net = neural_net;
-		} else {
-			neural_net = best_neural_net;
-		}
-	}
-
-	output = std::move(best_neural_net);
-};
 
 int main() {
 	auto training_digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels");
@@ -94,49 +72,51 @@ int main() {
 		tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
 	} };
 
-	while (!stop_signal_recieved) {
-		std::array<network, 8> networks {};
+	std::mutex best_nn_mutex {};
 
-		std::vector<std::thread> threads {};
-		threads.reserve(networks.size());
+	size_t thread_count = 8;
+	std::vector<std::thread> threads {};
+	threads.reserve(thread_count);
 
-		for (auto& nn : networks) {
-			nn = best_neural_net;
+	for (size_t i = 0; i < thread_count; ++i) {
+		threads.emplace_back([&best_neural_net, &best_average_cost, &start_time, &network_filepath, &rand_gen,
+		                      &training_digits, &best_nn_mutex, &stop_signal_recieved] {
+			std::uniform_int_distribution<u64> random_int {};
 
-			/* nudge_neural_network_values(neural_net); */
-			threads.emplace_back([&] {
-				std::uniform_int_distribution<u64> random_int {};
+			std::mt19937 thread_rand_gen { random_int(rand_gen) };
+			/* train_neural_net(std::move(nn), training_digits, nn, thread_rand_gen); */
 
-				std::mt19937 thread_rand_gen { random_int(rand_gen) };
-				train_neural_net(std::move(nn), training_digits, nn, thread_rand_gen);
-			});
-		}
+			network neural_net { best_neural_net };
 
-		for (auto& th : threads) {
-			th.join();
-		}
+			while (!stop_signal_recieved) {
+				nudge_neural_network_values(neural_net, rand_gen);
 
-		std::array<double, networks.size()> network_costs {};
-		for (size_t i = 0; i < networks.size(); ++i) {
-			network_costs[i] = average_cost_of_neural_net(networks[i], training_digits);
-		}
+				auto average_cost = average_cost_of_neural_net(neural_net, training_digits);
 
-		size_t best_network_index =
-		    std::distance(network_costs.begin(), std::min_element(network_costs.begin(), network_costs.end()));
+				if (std::lock_guard l { best_nn_mutex }; average_cost < best_average_cost) {
+					double cost_diff = best_average_cost - average_cost;
 
-		auto& neural_net = networks[best_network_index];
-		if (auto average_cost = average_cost_of_neural_net(neural_net, training_digits);
-		    average_cost < best_average_cost) {
-			best_average_cost = average_cost;
-			best_neural_net = std::move(neural_net);
+					best_average_cost = average_cost;
+					best_neural_net = neural_net;
 
-			auto current_time = std::chrono::steady_clock::now();
-			auto diff = current_time - start_time;
-			fmt::print("[{:%H:%M:%S}] new best cost network ({}) saved to \"{}\"\n", diff, best_average_cost,
-			           network_filepath);
+					auto current_time = std::chrono::steady_clock::now();
+					auto diff = current_time - start_time;
+					fmt::print("[{:9%H:%M:%S}] new best cost network ({:.6f} | -{:.6f}) saved to \"{}\"\n", diff, best_average_cost, cost_diff, network_filepath);
+					save_network_to_file(best_neural_net, network_filepath);
+				} else {
+					std::bernoulli_distribution rand_bool {};
 
-			save_network_to_file(best_neural_net, network_filepath);
-		}
+					// Give a chance that the network survives even if it's worse
+					if (rand_bool(rand_gen)) {
+						neural_net = best_neural_net;
+					}
+				}
+			}
+		});
+	}
+
+	for (auto& th : threads) {
+		th.join();
 	}
 
 	stop_thread.join();
