@@ -1,11 +1,13 @@
 #include <utility>
 #include <limits>
 
-template <typename T>
+template<typename T>
 class constrained_integral {
 public:
-	constrained_integral(const T& in_value, const std::pair<T, T>& min_max)
-		: min { min_max.first }, max { min_max.second } {
+	constrained_integral(const T& in_value, const std::pair<T, T>& min_max = { std::numeric_limits<T>::min(),
+	                                                                           std::numeric_limits<T>::max() })
+	    : min { min_max.first }
+	    , max { min_max.second } {
 		set_value(in_value);
 	}
 
@@ -54,7 +56,7 @@ private:
 			// so just set value to max
 			new_value = max;
 		} else {
-			new_value = value + step_value;	
+			new_value = value + step_value;
 		}
 
 		return set_value(new_value);

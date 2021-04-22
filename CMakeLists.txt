@@ -32,3 +32,7 @@ target_link_libraries(check_nn PRIVATE CONAN_PKG::fmt CONAN_PKG::sfml CONAN_PKG:
 add_executable(test_nn src/test_nn/main.cpp)
 target_include_directories(test_nn PRIVATE src/common)
 target_link_libraries(test_nn PRIVATE CONAN_PKG::fmt CONAN_PKG::eigen CONAN_PKG::cxxopts)
+
+add_executable(paint_nn src/paint_nn/main.cpp)
+target_include_directories(paint_nn PRIVATE src/common)
+target_link_libraries(paint_nn PRIVATE CONAN_PKG::fmt CONAN_PKG::sfml CONAN_PKG::eigen CONAN_PKG::cxxopts)
