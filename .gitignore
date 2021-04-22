@@ -5,6 +5,3 @@ Debug/
 Release/
 RelWithDebInfo/
 MinSizeRel/
-
-*.nn
-*.nn.*
