@@ -1,6 +1,7 @@
 #pragma once
 
 #include <span>
+#include <cmath>
 #include <random>
 #include <cstdint>
 #include <eigen3/Eigen/Eigen>
@@ -14,7 +15,7 @@ private:
 	template<int Size>
 	auto sigmoid(Eigen::Matrix<double, Size, 1>&& values) const -> Eigen::Matrix<double, Size, 1> {
 		for (auto& value : std::span(values.data(), values.size())) {
-			value = 1.0 / (1.0 + exp(-value));
+			value = 1.0 / (1.0 + std::exp(-value));
 			/* value = 0.5 * (1.0 + value / (1.0 + std::abs(value))); */
 		}
 
