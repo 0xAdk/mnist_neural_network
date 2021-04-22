@@ -4,6 +4,7 @@
 #include <vector>
 
 #include <fmt/format.h>
+#include <cxxopts.hpp>
 
 #include "average_cost_of_neural_net.hpp"
 #include "digit.hpp"
@@ -12,15 +13,38 @@
 #include "network_from_file.hpp"
 #include "short_types.hpp"
 
-int main() {
-	network best_neural_net {};
+int main(int argc, char* argv[]) {
+	cxxopts::Options opts { "NN Accuracy Tester", "Check how accurate a neural network is on a data set" };
+	opts.add_options()
+		("data-dir", "Directory that contains the mnist database", cxxopts::value<std::string>()->default_value("data"))
+		("n,network-path", "Network binary to train", cxxopts::value<std::string>()->default_value("neural_network.nn"));
 
-	std::string network_filepath { "data/saved_network.nn" };
+	opts.parse_positional("network-path");
+
+	// FIXME: catch exceptions thrown by cxxopts::Options::parse on errors
+	auto results = opts.parse(argc, argv);
+
+	std::string network_filepath { results["network-path"].as<std::string>() };
+	fmt::print("Using \"{}\" as network file\n", network_filepath);
+
+	if (!std::filesystem::exists(network_filepath)) {
+		fmt::print("{} doesn't exist!\n", network_filepath);
+		exit(1);
+	}
+
+	network best_neural_net {};
 	load_network_from_file(best_neural_net, network_filepath);
+
+	std::string data_dir { results["data-dir"].as<std::string>() };
+
+	if (!std::filesystem::is_directory(data_dir)) {
+		fmt::print("data-dir: \"{}\" isn't a directory\n", data_dir);
+		exit(1);
+	}
 
 	fmt::print("Starting network test\n");
 	{
-		auto training_digits = digits_from_path("data/mnist_training_images", "data/mnist_training_labels");
+		auto training_digits = digits_from_path(data_dir + "/mnist_training_images", data_dir + "/mnist_training_labels");
 
 		u32 total_correct_training { 0 };
 		for (const auto& digit : training_digits) {
@@ -40,7 +64,7 @@ int main() {
 
 
 	{
-		auto testing_digits = digits_from_path("data/mnist_testing_images", "data/mnist_testing_labels");
+		auto testing_digits = digits_from_path(data_dir + "/mnist_testing_images", data_dir + "/mnist_testing_labels");
 
 		u32 total_correct_testing { 0 };
 		for (const auto& digit : testing_digits) {
