@@ -23,41 +23,40 @@ private:
 	}
 
 public:
-	u64 layer_1_size = 28 * 28;
-	u64 layer_2_size = 16;
-	u64 layer_3_size = 16;
-	u64 layer_4_size = 10;
+	std::vector<u64> topology;
+	std::vector<Eigen::MatrixXd> layer_weights;
+	std::vector<Eigen::VectorXd> layer_bias;
 
-	Eigen::MatrixXd layer_2_weights;
-	Eigen::VectorXd layer_2_bias;
+	network() : network { 28 * 28, 16, 16, 10 } {
+	}
 
-	Eigen::MatrixXd layer_3_weights;
-	Eigen::VectorXd layer_3_bias;
+	network(std::initializer_list<u64> in_topology) : topology { in_topology } {
+		layer_bias.reserve(topology.size() - 1);
 
-	Eigen::MatrixXd layer_4_weights;
-	Eigen::VectorXd layer_4_bias;
+		for (size_t i { 1 }; i < topology.size(); ++i) {
+			layer_bias.emplace_back(topology[i]);
+		}
 
-	network()
-	    : layer_2_weights { layer_2_size, layer_1_size }
-	    , layer_2_bias { layer_2_size }
-	    , layer_3_weights { layer_3_size, layer_2_size }
-	    , layer_3_bias { layer_3_size }
-	    , layer_4_weights { layer_4_size, layer_3_size }
-	    , layer_4_bias { layer_4_size } {
+		layer_weights.reserve(topology.size() - 1);
+
+		for (size_t i { 1 }; i < topology.size(); ++i) {
+			layer_weights.emplace_back(topology[i], topology[i - 1]);
+		}
 	}
 
 	auto get_prediction(std::vector<u8> pixels) const -> Eigen::VectorXd {
-		Eigen::VectorXd layer_1 { layer_1_size };
+		Eigen::VectorXd input_layer { topology[0] };
 
-		for (size_t i = 0; i < pixels.size(); ++i) {
-			layer_1[i] = static_cast<double>(pixels[i]) / 256.0;
+		for (size_t i { 0 }; i < pixels.size(); ++i) {
+			input_layer[i] = static_cast<double>(pixels[i]) / 256.0;
 		}
 
-		const auto layer_2 = sigmoid(layer_2_weights * layer_1 + layer_2_bias);
-		const auto layer_3 = sigmoid(layer_3_weights * layer_2 + layer_3_bias);
-		const auto layer_4 = sigmoid(layer_4_weights * layer_3 + layer_4_bias);
+		auto output_layer = input_layer;
+		for (size_t i { 0 }; i < topology.size() - 1; ++i) {
+			output_layer = sigmoid(layer_weights[i] * output_layer + layer_bias[i]);
+		}
 
-		return layer_4;
+		return output_layer;
 	}
 };
 
@@ -69,67 +68,39 @@ inline auto nudge_neural_network_values(network& neural_net, std::mt19937& rand_
 		return std::span(matrix.data(), matrix.size());
 	};
 
-	for (auto& w : span(neural_net.layer_2_weights)) {
-		if (rand_bool(rand_gen)) {
-			w *= rand_multiplier(rand_gen);
+	for (auto& weights : neural_net.layer_weights) {
+		for (auto& w : span(weights)) {
+			if (rand_bool(rand_gen)) {
+				w *= rand_multiplier(rand_gen);
+			}
 		}
 	}
 
-	for (auto& w : span(neural_net.layer_3_weights)) {
-		if (rand_bool(rand_gen)) {
-			w *= rand_multiplier(rand_gen);
-		}
-	}
-
-	for (auto& w : span(neural_net.layer_4_weights)) {
-		if (rand_bool(rand_gen)) {
-			w *= rand_multiplier(rand_gen);
-		}
-	}
-
-	for (auto& b : span(neural_net.layer_2_bias)) {
-		if (rand_bool(rand_gen)) {
-			b *= rand_multiplier(rand_gen);
-		}
-	}
-
-	for (auto& b : span(neural_net.layer_3_bias)) {
-		if (rand_bool(rand_gen)) {
-			b *= rand_multiplier(rand_gen);
-		}
-	}
-
-	for (auto& b : span(neural_net.layer_4_bias)) {
-		if (rand_bool(rand_gen)) {
-			b *= rand_multiplier(rand_gen);
+	for (auto& bias : neural_net.layer_bias) {
+		for (auto& b : span(bias)) {
+			if (rand_bool(rand_gen)) {
+				b *= rand_multiplier(rand_gen);
+			}
 		}
 	}
 }
 
 inline auto randomize_neural_network_value(network& neural_net, std::mt19937& rand_gen) -> void {
+	auto span = [](auto& matrix) {
+		return std::span(matrix.data(), matrix.size());
+	};
+
 	std::uniform_real_distribution rand_normal { -1.0, 1.0 };
 
-	for (auto& w : std::span(neural_net.layer_2_weights.data(), neural_net.layer_2_weights.size())) {
-		w = rand_normal(rand_gen);
+	for (auto& weights : neural_net.layer_weights) {
+		for (auto& w : span(weights)) {
+			w = rand_normal(rand_gen);
+		}
 	}
 
-	for (auto& w : std::span(neural_net.layer_3_weights.data(), neural_net.layer_3_weights.size())) {
-		w = rand_normal(rand_gen);
-	}
-
-	for (auto& w : std::span(neural_net.layer_4_weights.data(), neural_net.layer_4_weights.size())) {
-		w = rand_normal(rand_gen);
-	}
-
-	for (auto& b : std::span(neural_net.layer_2_bias.data(), neural_net.layer_2_bias.size())) {
-		b = rand_normal(rand_gen);
-	}
-
-	for (auto& b : std::span(neural_net.layer_3_bias.data(), neural_net.layer_3_bias.size())) {
-		b = rand_normal(rand_gen);
-	}
-
-	for (auto& b : std::span(neural_net.layer_4_bias.data(), neural_net.layer_4_bias.size())) {
-		b = rand_normal(rand_gen);
+	for (auto& bias : neural_net.layer_bias) {
+		for (auto& b : span(bias)) {
+			b = rand_normal(rand_gen);
+		}
 	}
 }

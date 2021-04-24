@@ -22,10 +22,10 @@ inline auto save_network_to_file(const network& neural_net, const std::string fi
 	u32 magic_number = 0x606;
 
 	write_data(magic_number);
-	write_data(neural_net.layer_1_size);
-	write_data(neural_net.layer_2_size);
-	write_data(neural_net.layer_3_size);
-	write_data(neural_net.layer_4_size);
+
+	for (auto& layer_size : neural_net.topology) {
+		write_data(layer_size);
+	}
 
 	auto write_matrix = [&write_data](auto& matrix) {
 		auto span = [](auto& matrix) {
@@ -37,11 +37,11 @@ inline auto save_network_to_file(const network& neural_net, const std::string fi
 		}
 	};
 
-	write_matrix(neural_net.layer_2_bias);
-	write_matrix(neural_net.layer_2_weights);
-	write_matrix(neural_net.layer_3_bias);
-	write_matrix(neural_net.layer_3_weights);
-	write_matrix(neural_net.layer_4_bias);
-	write_matrix(neural_net.layer_4_weights);
+	write_matrix(neural_net.layer_bias[0]);
+	write_matrix(neural_net.layer_weights[0]);
+	write_matrix(neural_net.layer_bias[1]);
+	write_matrix(neural_net.layer_weights[1]);
+	write_matrix(neural_net.layer_bias[2]);
+	write_matrix(neural_net.layer_weights[2]);
 }
 

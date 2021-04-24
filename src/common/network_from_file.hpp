@@ -50,10 +50,10 @@ inline auto load_network_from_file(network& neural_net, const std::string filepa
 		}
 	};
 
-	read_matrix(neural_net.layer_2_bias);
-	read_matrix(neural_net.layer_2_weights);
-	read_matrix(neural_net.layer_3_bias);
-	read_matrix(neural_net.layer_3_weights);
-	read_matrix(neural_net.layer_4_bias);
-	read_matrix(neural_net.layer_4_weights);
+	read_matrix(neural_net.layer_bias[0]);
+	read_matrix(neural_net.layer_weights[0]);
+	read_matrix(neural_net.layer_bias[1]);
+	read_matrix(neural_net.layer_weights[1]);
+	read_matrix(neural_net.layer_bias[2]);
+	read_matrix(neural_net.layer_weights[2]);
 }
