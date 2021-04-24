@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <utility>
+#include <vector>
 
 #include <SFML/Graphics.hpp>
 #include <cxxopts.hpp>
@@ -68,7 +69,8 @@ int main(int argc, char* argv[]) {
 					static_cast<float>(std::max(event.mouseMove.y, 0)),
 				};
 
-				std::array<u8, 28 * 28> digit_pixels {};
+				std::vector<u8> digit_pixels {};
+				digit_pixels.resize(28 * 28);
 
 				for (u32 i { 0 }; i < pixels.size(); ++i) {
 					digit_pixels[i] = pixels[i].second;

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <fstream>
 #include <vector>
 
@@ -103,7 +102,8 @@ inline auto digits_from_path(std::string images_path, std::string labels_path, s
 	digits.reserve(digit_count);
 
 	for (uint32_t i = 0; i < digit_count; ++i) {
-		std::array<u8, 28 * 28> pixels {};
+		std::vector<u8> pixels {};
+		pixels.resize(28 * 28);
 
 		for (auto& pixel : pixels) {
 			pixel = read_be_type<u8>(images);
