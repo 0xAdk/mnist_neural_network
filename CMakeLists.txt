@@ -9,9 +9,17 @@ include(${CMAKE_SOURCE_DIR}/cmake/project_setup.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/conan.cmake)
 conan_cmake_run(
 	REQUIRES
+
+	# Format text
 	fmt/7.1.2
+
+	# Graphics
 	sfml/2.5.1@bincrafters/stable
+
+	# Matrix
 	eigen/3.3.9
+
+	# Executable opts
 	cxxopts/2.2.1
 
 	BASIC_SETUP CMAKE_TARGETS
