@@ -28,6 +28,10 @@ conan_cmake_run(
 
 
 add_library(common INTERFACE)
+target_sources(
+	common INTERFACE
+	./src/common/network.cpp
+)
 target_include_directories(
 	common INTERFACE
 	./src/common
