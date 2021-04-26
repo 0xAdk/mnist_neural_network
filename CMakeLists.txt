@@ -27,13 +27,17 @@ conan_cmake_run(
 )
 
 
-add_library(common INTERFACE)
+add_library(common STATIC)
 target_sources(
-	common INTERFACE
+	common PRIVATE
 	./src/common/network.cpp
 )
+target_link_libraries(
+	common PRIVATE
+	CONAN_PKG::eigen
+)
 target_include_directories(
-	common INTERFACE
+	common PUBLIC
 	./src/common
 )
 
