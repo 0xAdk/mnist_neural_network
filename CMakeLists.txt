@@ -79,7 +79,16 @@ target_link_libraries(
 )
 
 
-add_executable(paint_nn src/paint_nn/main.cpp)
+add_executable(paint_nn)
+target_sources(
+	paint_nn PRIVATE
+	src/paint_nn/main.cpp
+	src/paint_nn/paint_nn.cpp
+)
+target_include_directories(
+	paint_nn PRIVATE
+	./src/paint_nn
+)
 target_link_libraries(
 	paint_nn PRIVATE
 	common
