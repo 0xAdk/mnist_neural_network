@@ -5,6 +5,7 @@ add_executable(train_nn)
 target_sources(
 	train_nn PRIVATE
 	src/main.cpp
+	src/train_nn.cpp
 )
 
 find_package(Threads REQUIRED)
