@@ -30,6 +30,7 @@ conan_cmake_run(
 add_library(common STATIC)
 target_sources(
 	common PRIVATE
+	./src/common/average_cost_of_neural_net.cpp
 	./src/common/load_mnist_digits.cpp
 	./src/common/network.cpp
 	./src/common/network_from_file.cpp
