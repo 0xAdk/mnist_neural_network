@@ -69,7 +69,16 @@ target_link_libraries(
 )
 
 
-add_executable(test_nn src/test_nn/main.cpp)
+add_executable(test_nn)
+target_sources(
+	test_nn PRIVATE
+	src/test_nn/main.cpp
+	src/test_nn/test_nn.cpp
+)
+target_include_directories(
+	test_nn PRIVATE
+	./src/test_nn
+)
 target_link_libraries(
 	test_nn PRIVATE
 	common
