@@ -31,6 +31,8 @@ add_library(common STATIC)
 target_sources(
 	common PRIVATE
 	./src/common/network.cpp
+	./src/common/network_from_file.cpp
+	./src/common/network_to_file.cpp
 )
 target_link_libraries(
 	common PRIVATE
