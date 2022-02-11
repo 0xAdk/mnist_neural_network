@@ -10,10 +10,10 @@ conan_cmake_run(
 	REQUIRES
 
 	# Format text
-	fmt/7.1.2
+	fmt/8.1.1
 
 	# Graphics
-	sfml/2.5.1@bincrafters/stable
+	sfml/2.5.1
 
 	# Matrix
 	eigen/3.3.9
